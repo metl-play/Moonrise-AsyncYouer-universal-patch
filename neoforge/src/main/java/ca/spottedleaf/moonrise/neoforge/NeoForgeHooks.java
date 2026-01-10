@@ -17,9 +17,7 @@ import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.ImposterProtoChunk;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -89,8 +87,8 @@ public final class NeoForgeHooks implements PlatformHooks {
     }
 
     @Override
-    public void chunkFullStatusComplete(final LevelChunk newChunk, final ProtoChunk original) {
-        NeoForge.EVENT_BUS.post(new ChunkEvent.Load(newChunk, !(original instanceof ImposterProtoChunk)));
+    public void chunkFullStatusComplete(final LevelChunk newChunk, final boolean isNewChunk) {
+        NeoForge.EVENT_BUS.post(new ChunkEvent.Load(newChunk, isNewChunk));
     }
 
     @Override

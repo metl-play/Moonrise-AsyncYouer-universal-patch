@@ -1132,6 +1132,17 @@ public final class NewChunkHolder {
     // updated while holding no locks, but adds a ticket before to prevent pending status from dropping
     // so, current will never update to a value higher than pending
     private FullChunkStatus currentFullChunkStatus = FullChunkStatus.INACCESSIBLE;
+    private boolean chunkLoadEventNewChunk;
+
+    public void moonrise$setChunkLoadEventNewChunk(final boolean isNewChunk) {
+        this.chunkLoadEventNewChunk = isNewChunk;
+    }
+
+    public boolean moonrise$consumeChunkLoadEventNewChunk() {
+        final boolean ret = this.chunkLoadEventNewChunk;
+        this.chunkLoadEventNewChunk = false;
+        return ret;
+    }
 
     public FullChunkStatus getChunkStatus() {
         // no volatile access, access off-main is considered racey anyways

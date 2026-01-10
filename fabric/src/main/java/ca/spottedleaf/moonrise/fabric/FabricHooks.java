@@ -19,9 +19,7 @@ import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.ImposterProtoChunk;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -93,10 +91,10 @@ public final class FabricHooks implements PlatformHooks {
     }
 
     @Override
-    public void chunkFullStatusComplete(final LevelChunk newChunk, final ProtoChunk original) {
+    public void chunkFullStatusComplete(final LevelChunk newChunk, final boolean isNewChunk) {
         if (HAS_FABRIC_LIFECYCLE_EVENTS) {
             ServerChunkEvents.CHUNK_LOAD.invoker().onChunkLoad((ServerLevel) newChunk.getLevel(), newChunk);
-            if (!(original instanceof ImposterProtoChunk)) {
+            if (isNewChunk) {
                 ServerChunkEvents.CHUNK_GENERATE.invoker().onChunkGenerate((ServerLevel)newChunk.getLevel(), newChunk);
             }
         }

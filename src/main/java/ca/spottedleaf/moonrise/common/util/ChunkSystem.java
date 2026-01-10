@@ -3,8 +3,10 @@ package ca.spottedleaf.moonrise.common.util;
 import ca.spottedleaf.concurrentutil.util.Priority;
 import ca.spottedleaf.moonrise.common.PlatformHooks;
 import ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel;
+import ca.spottedleaf.moonrise.patches.chunk_system.level.chunk.ChunkSystemChunkHolder;
 import ca.spottedleaf.moonrise.patches.chunk_system.level.chunk.ChunkSystemLevelChunk;
 import ca.spottedleaf.moonrise.patches.chunk_system.player.RegionizedPlayerChunkLoader;
+import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.NewChunkHolder;
 import ca.spottedleaf.moonrise.patches.chunk_system.world.ChunkSystemServerChunkCache;
 import ca.spottedleaf.moonrise.patches.chunk_tick_iteration.ChunkTickServerLevel;
 import ca.spottedleaf.moonrise.compat.lithium.LithiumHooks;
@@ -102,6 +104,10 @@ public final class ChunkSystem {
         ((ChunkSystemServerLevel)((ServerLevel)chunk.getLevel())).moonrise$getLoadedChunks().add(
                 ((ChunkSystemLevelChunk)chunk).moonrise$getChunkAndHolder()
         );
+        final NewChunkHolder realHolder = ((ChunkSystemChunkHolder)holder).moonrise$getRealChunkHolder();
+        if (realHolder != null) {
+            PlatformHooks.get().chunkFullStatusComplete(chunk, realHolder.moonrise$consumeChunkLoadEventNewChunk());
+        }
         if (HAS_LITHIUM) {
             LithiumHooks.onChunkAccessible((ServerLevel) chunk.getLevel(), chunk);
         }

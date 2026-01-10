@@ -71,6 +71,7 @@ public final class ChunkFullTask extends ChunkProgressionTask implements Runnabl
             }
 
             ((ChunkSystemLevelChunk)chunk).moonrise$setChunkAndHolder(new ServerChunkCache.ChunkAndHolder(chunk, this.chunkHolder.vanillaChunkHolder));
+            this.chunkHolder.moonrise$setChunkLoadEventNewChunk(!(this.fromChunk instanceof ImposterProtoChunk));
 
             final NewChunkHolder chunkHolder = this.chunkHolder;
 
@@ -92,7 +93,6 @@ public final class ChunkFullTask extends ChunkProgressionTask implements Runnabl
                 platformHooks.setCurrentlyLoading(this.chunkHolder.vanillaChunkHolder, chunk);
                 chunk.registerAllBlockEntitiesAfterLevelLoad();
                 chunk.registerTickContainerInLevel(this.world);
-                platformHooks.chunkFullStatusComplete(chunk, (ProtoChunk)this.fromChunk);
             } finally {
                 platformHooks.setCurrentlyLoading(this.chunkHolder.vanillaChunkHolder, null);
             }
