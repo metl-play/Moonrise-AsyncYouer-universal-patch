@@ -2,6 +2,7 @@
     "required": true,
     "minVersion": "0.8",
     "package": "ca.spottedleaf.moonrise.mixin",
+    "plugin": "ca.spottedleaf.moonrise.mixin.MoonriseMixinPlugin",
     "compatibilityLevel": "JAVA_21",
     "mixins": [
         "bitstorage.SimpleBitStorageMixin",
