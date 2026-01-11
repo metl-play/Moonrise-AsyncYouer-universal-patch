@@ -36,22 +36,26 @@ public final class PoiDataController extends MoonriseRegionFileIO.RegionDataCont
 
     @Override
     public WriteData startWrite(final int chunkX, final int chunkZ, final CompoundTag compound) throws IOException {
-        return ((ChunkSystemRegionFileStorage)this.getCache()).moonrise$startWrite(chunkX, chunkZ, compound);
+        return getStorage().moonrise$startWrite(chunkX, chunkZ, compound);
     }
 
     @Override
     public void finishWrite(final int chunkX, final int chunkZ, final WriteData writeData) throws IOException {
-        ((ChunkSystemRegionFileStorage)this.getCache()).moonrise$finishWrite(chunkX, chunkZ, writeData);
+        getStorage().moonrise$finishWrite(chunkX, chunkZ, writeData);
     }
 
     @Override
     public ReadData readData(final int chunkX, final int chunkZ) throws IOException {
-        return ((ChunkSystemRegionFileStorage)this.getCache()).moonrise$readData(chunkX, chunkZ);
+        return getStorage().moonrise$readData(chunkX, chunkZ);
     }
 
     @Override
     public CompoundTag finishRead(final int chunkX, final int chunkZ, final ReadData readData) throws IOException {
-        return ((ChunkSystemRegionFileStorage)this.getCache()).moonrise$finishRead(chunkX, chunkZ, readData);
+        return getStorage().moonrise$finishRead(chunkX, chunkZ, readData);
+    }
+
+    private ChunkSystemRegionFileStorage getStorage() {
+        return ca.spottedleaf.moonrise.patches.chunk_system.io.RegionFileStorageAdapter.wrap(this.getCache());
     }
 
     private static ChunkTaskScheduler getScheduler(final ServerLevel world) {

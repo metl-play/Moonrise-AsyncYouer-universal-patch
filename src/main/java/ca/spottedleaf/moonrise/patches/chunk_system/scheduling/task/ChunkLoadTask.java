@@ -13,6 +13,7 @@ import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskSchedule
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.NewChunkHolder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ChunkMap;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -20,17 +21,23 @@ import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.chunk.storage.ChunkSerializer;
+import net.minecraft.world.level.chunk.storage.ChunkStorage;
 import net.minecraft.world.level.levelgen.blending.BlendingData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.invoke.VarHandle;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public final class ChunkLoadTask extends ChunkProgressionTask {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ChunkLoadTask.class);
+    private static final Method UPGRADE_CHUNK_TAG_METHOD = findUpgradeChunkTagMethod();
+    private static final AtomicBoolean UPGRADE_CHUNK_TAG_WARNED = new AtomicBoolean(false);
 
     private final NewChunkHolder chunkHolder;
     private final ChunkDataLoadTask loadTask;
@@ -59,6 +66,55 @@ public final class ChunkLoadTask extends ChunkProgressionTask {
             ChunkLoadTask.this.complete(result == null ? null : result.left(), result == null ? null : result.right());
         } else if (count < 0) {
             throw new IllegalStateException("Called tryCompleteLoad() too many times");
+        }
+    }
+
+    private static Method findUpgradeChunkTagMethod() {
+        final Class<?>[] search = new Class<?>[] {ChunkMap.class, ChunkStorage.class};
+        for (final Class<?> type : search) {
+            try {
+                final Method method = type.getDeclaredMethod("upgradeChunkTag", CompoundTag.class);
+                method.setAccessible(true);
+                return method;
+            } catch (final Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static CompoundTag upgradeChunkTagCompat(final ServerLevel world, final CompoundTag data) {
+        final Method method = UPGRADE_CHUNK_TAG_METHOD;
+        if (method == null) {
+            warnUpgradeChunkTagFailure(null);
+            return data;
+        }
+        try {
+            return (CompoundTag)method.invoke(world.getChunkSource().chunkMap, data);
+        } catch (final IllegalAccessException ignored) {
+            warnUpgradeChunkTagFailure(ignored);
+        } catch (final InvocationTargetException error) {
+            final Throwable cause = error.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            if (cause instanceof Error fatal) {
+                throw fatal;
+            }
+            throw new RuntimeException(cause);
+        } catch (final Throwable throwable) {
+            warnUpgradeChunkTagFailure(throwable);
+        }
+        return data;
+    }
+
+    private static void warnUpgradeChunkTagFailure(final Throwable throwable) {
+        if (!UPGRADE_CHUNK_TAG_WARNED.compareAndSet(false, true)) {
+            return;
+        }
+        if (throwable == null) {
+            LOGGER.warn("Chunk upgradeChunkTag is not accessible; skipping async conversion.");
+        } else {
+            LOGGER.warn("Chunk upgradeChunkTag is not accessible; skipping async conversion.", throwable);
         }
     }
 
@@ -335,7 +391,7 @@ public final class ChunkLoadTask extends ChunkProgressionTask {
 
             try {
                 // run converters
-                final CompoundTag converted = this.world.getChunkSource().chunkMap.upgradeChunkTag(data);
+                final CompoundTag converted = upgradeChunkTagCompat(this.world, data);
 
                 return new TaskResult<>(converted, null);
             } catch (final Throwable thr2) {
