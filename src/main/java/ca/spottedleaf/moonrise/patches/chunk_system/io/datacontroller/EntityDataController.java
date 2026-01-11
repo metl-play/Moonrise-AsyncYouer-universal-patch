@@ -2,7 +2,7 @@ package ca.spottedleaf.moonrise.patches.chunk_system.io.datacontroller;
 
 import ca.spottedleaf.moonrise.patches.chunk_system.io.ChunkSystemRegionFileStorage;
 import ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO;
-import ca.spottedleaf.moonrise.common.util.MoonriseCommon;
+import ca.spottedleaf.moonrise.common.util.MoonriseCommonInternal;
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskScheduler;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.ChunkPos;
@@ -82,8 +82,8 @@ public final class EntityDataController extends MoonriseRegionFileIO.RegionDataC
 
     private static final class MoonriseCommonHolder {
         private final ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor ioExecutor =
-                MoonriseCommon.SERVER_REGION_IO_GROUP.createExecutor(-1, MoonriseCommon.IO_QUEUE_HOLD_TIME, 0);
+                MoonriseCommonInternal.SERVER_REGION_IO_GROUP.createExecutor(-1, MoonriseCommonInternal.IO_QUEUE_HOLD_TIME, 0);
         private final ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor compressionExecutor =
-                MoonriseCommon.LOAD_GROUP.createExecutor(-1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
+                MoonriseCommonInternal.LOAD_GROUP.createExecutor(-1, MoonriseCommonInternal.WORKER_QUEUE_HOLD_TIME, 0);
     }
 }

@@ -5,7 +5,7 @@ import ca.spottedleaf.moonrise.patches.profiler.LProfileGraph;
 import ca.spottedleaf.moonrise.patches.profiler.LProfilerRegistry;
 import ca.spottedleaf.moonrise.patches.profiler.LeafProfiler;
 import ca.spottedleaf.moonrise.patches.profiler.TickTime;
-import ca.spottedleaf.moonrise.common.util.MoonriseCommon;
+import ca.spottedleaf.moonrise.common.util.MoonriseCommonInternal;
 import com.mojang.logging.LogUtils;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -67,7 +67,7 @@ public final class ClientProfilerInstance implements ProfilerFiller {
 
     public ClientProfilerInstance() {
         this.root = Path.of("moonrise", "profiler", "large_ticks");
-        this.dumpPool = MoonriseCommon.CLIENT_PROFILER_IO_GROUP.createExecutor(1, MoonriseCommon.IO_QUEUE_HOLD_TIME, 0);
+        this.dumpPool = MoonriseCommonInternal.CLIENT_PROFILER_IO_GROUP.createExecutor(1, MoonriseCommonInternal.IO_QUEUE_HOLD_TIME, 0);
     }
 
     private void reset() {

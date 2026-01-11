@@ -10,8 +10,10 @@ import ca.spottedleaf.moonrise.patches.chunk_system.level.poi.ChunkSystemPoiMana
 import ca.spottedleaf.moonrise.patches.chunk_system.level.poi.PoiChunk;
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskScheduler;
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.NewChunkHolder;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.ImposterProtoChunk;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -21,10 +23,14 @@ import net.minecraft.world.level.chunk.status.ChunkStatusTasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.lang.invoke.VarHandle;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.List;
 
 public final class ChunkFullTask extends ChunkProgressionTask implements Runnable {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ChunkFullTask.class);
+    private static final Method POST_LOAD_PROTO_CHUNK_METHOD = findPostLoadProtoChunkMethod();
 
     private final NewChunkHolder chunkHolder;
     private final ChunkAccess fromChunk;
@@ -65,7 +71,7 @@ public final class ChunkFullTask extends ChunkProgressionTask implements Runnabl
                 final ServerLevel world = this.world;
                 final ProtoChunk protoChunk = (ProtoChunk)this.fromChunk;
                 chunk = new LevelChunk(this.world, protoChunk, (final LevelChunk unused) -> {
-                    ChunkStatusTasks.postLoadProtoChunk(world, protoChunk.getEntities());
+                    postLoadProtoChunkCompat(world, protoChunk.getEntities());
                 });
                 this.chunkHolder.replaceProtoChunk(new ImposterProtoChunk(chunk, false));
             }
@@ -101,6 +107,41 @@ public final class ChunkFullTask extends ChunkProgressionTask implements Runnabl
             return;
         }
         this.complete(chunk, null);
+    }
+
+    private static Method findPostLoadProtoChunkMethod() {
+        try {
+            final Method method = ChunkStatusTasks.class.getDeclaredMethod(
+                    "postLoadProtoChunk", ServerLevel.class, List.class
+            );
+            method.setAccessible(true);
+            return method;
+        } catch (final NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    private static void postLoadProtoChunkCompat(final ServerLevel world, final List<CompoundTag> entities) {
+        if (POST_LOAD_PROTO_CHUNK_METHOD != null) {
+            try {
+                POST_LOAD_PROTO_CHUNK_METHOD.invoke(null, world, entities);
+                return;
+            } catch (final IllegalAccessException ignored) {
+            } catch (final InvocationTargetException error) {
+                final Throwable cause = error.getCause();
+                if (cause instanceof RuntimeException runtime) {
+                    throw runtime;
+                }
+                if (cause instanceof Error fatal) {
+                    throw fatal;
+                }
+                throw new RuntimeException(cause);
+            }
+        }
+
+        if (!entities.isEmpty()) {
+            world.addLegacyChunkEntities(EntityType.loadEntitiesRecursive(entities, world));
+        }
     }
 
     protected volatile boolean scheduled;

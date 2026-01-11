@@ -1,8 +1,8 @@
+This fork is for Patching incompatibilities and AsyncYouer in mind.
+Only NeoForge 1.21.1 
+
 Moonrise
 ==
-[![Modrinth](https://img.shields.io/badge/Modrinth-gray?logo=modrinth)](https://modrinth.com/mod/moonrise-opt)
-[![CurseForge](https://img.shields.io/badge/CurseForge-gray?logo=curseforge)](https://www.curseforge.com/minecraft/mc-mods/moonrise)
-[![Release](https://img.shields.io/github/v/release/Tuinity/Moonrise?include_prereleases)](https://github.com/Tuinity/Moonrise/releases)
 [![License](https://img.shields.io/github/license/Tuinity/Moonrise)](LICENSE.md)
 
 Fabric/NeoForge mod for optimising performance of the integrated (singleplayer/LAN) and dedicated server.
@@ -32,4 +32,4 @@ Moonrise provides documented configuration options for tuning the chunk system a
 Important configuration options may be configured from the mods menu as well.
 
 ## Contact
-[Discord](https://discord.gg/tuinity)
+Just here

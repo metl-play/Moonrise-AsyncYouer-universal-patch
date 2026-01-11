@@ -2,7 +2,7 @@ package ca.spottedleaf.moonrise.mixin.render;
 
 import ca.spottedleaf.concurrentutil.executor.thread.PrioritisedThreadPool;
 import ca.spottedleaf.concurrentutil.util.Priority;
-import ca.spottedleaf.moonrise.common.util.MoonriseCommon;
+import ca.spottedleaf.moonrise.common.util.MoonriseCommonInternal;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -16,8 +16,8 @@ import java.util.function.Supplier;
 abstract class SectionRenderDispatcherMixin {
 
     @Unique
-    private static final PrioritisedThreadPool.ExecutorGroup.ThreadPoolExecutor RENDER_EXECUTOR = MoonriseCommon.RENDER_EXECUTOR_GROUP.createExecutor(
-            -1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0
+    private static final PrioritisedThreadPool.ExecutorGroup.ThreadPoolExecutor RENDER_EXECUTOR = MoonriseCommonInternal.RENDER_EXECUTOR_GROUP.createExecutor(
+            -1, MoonriseCommonInternal.WORKER_QUEUE_HOLD_TIME, 0
     );
 
     /**

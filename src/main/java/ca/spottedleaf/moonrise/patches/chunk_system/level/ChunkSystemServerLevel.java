@@ -9,6 +9,7 @@ import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskSchedule
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ChunkHolder;
 import net.minecraft.server.level.ServerChunkCache;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import java.util.List;
@@ -18,11 +19,17 @@ public interface ChunkSystemServerLevel extends ChunkSystemLevel {
 
     public ChunkTaskScheduler moonrise$getChunkTaskScheduler();
 
-    public MoonriseRegionFileIO.RegionDataController moonrise$getChunkDataController();
+    default MoonriseRegionFileIO.RegionDataController moonrise$getChunkDataController() {
+        return ChunkSystemServerLevelDefaults.getChunkDataController((ServerLevel)(Object)this);
+    }
 
-    public MoonriseRegionFileIO.RegionDataController moonrise$getPoiChunkDataController();
+    default MoonriseRegionFileIO.RegionDataController moonrise$getPoiChunkDataController() {
+        return ChunkSystemServerLevelDefaults.getPoiChunkDataController((ServerLevel)(Object)this);
+    }
 
-    public MoonriseRegionFileIO.RegionDataController moonrise$getEntityChunkDataController();
+    default MoonriseRegionFileIO.RegionDataController moonrise$getEntityChunkDataController() {
+        return ChunkSystemServerLevelDefaults.getEntityChunkDataController((ServerLevel)(Object)this);
+    }
 
     public int moonrise$getRegionChunkShift();
 

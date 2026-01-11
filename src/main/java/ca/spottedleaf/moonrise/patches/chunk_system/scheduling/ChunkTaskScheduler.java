@@ -9,7 +9,7 @@ import ca.spottedleaf.concurrentutil.util.Priority;
 import ca.spottedleaf.moonrise.common.config.moonrise.MoonriseConfig;
 import ca.spottedleaf.moonrise.common.util.CoordinateUtils;
 import ca.spottedleaf.moonrise.common.util.JsonUtil;
-import ca.spottedleaf.moonrise.common.util.MoonriseCommon;
+import ca.spottedleaf.moonrise.common.util.MoonriseCommonInternal;
 import ca.spottedleaf.moonrise.common.util.TickThread;
 import ca.spottedleaf.moonrise.common.util.WorldUtil;
 import ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel;
@@ -70,7 +70,7 @@ public final class ChunkTaskScheduler {
     // Paper/Youer hook: GlobalConfiguration.ChunkSystem.postProcess expects this signature.
     public static void init(final GlobalConfiguration.ChunkSystem config) {
         Objects.requireNonNull(config, "config");
-        MoonriseCommon.adjustWorkerThreads(config.workerThreads, config.ioThreads);
+        MoonriseCommonInternal.adjustWorkerThreads(config.workerThreads, config.ioThreads);
 
         String genParallelism = Objects.requireNonNull(config.genParallelism, "config.genParallelism");
         if ("default".equalsIgnoreCase(genParallelism)) {
@@ -94,7 +94,7 @@ public final class ChunkTaskScheduler {
     }
 
     public static void init(final boolean useParallelGen) {
-        for (final PrioritisedThreadPool.ExecutorGroup.ThreadPoolExecutor executor : MoonriseCommon.RADIUS_AWARE_GROUP.getAllExecutors()) {
+        for (final PrioritisedThreadPool.ExecutorGroup.ThreadPoolExecutor executor : MoonriseCommonInternal.RADIUS_AWARE_GROUP.getAllExecutors()) {
             executor.setMaxParallelism(useParallelGen ? -1 : 1);
         }
 
@@ -318,14 +318,20 @@ public final class ChunkTaskScheduler {
         this.lockShift = Math.max(((ChunkSystemServerLevel)world).moonrise$getRegionChunkShift(), ThreadedTicketLevelPropagator.SECTION_SHIFT);
         this.schedulingLockArea = new ReentrantAreaLock(this.getChunkSystemLockShift());
 
-        this.parallelGenExecutor = MoonriseCommon.PARALLEL_GEN_GROUP.createExecutor(-1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
-        this.radiusAwareGenExecutor = MoonriseCommon.RADIUS_AWARE_GROUP.createExecutor(1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
-        this.loadExecutor = MoonriseCommon.LOAD_GROUP.createExecutor(-1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
+        this.parallelGenExecutor = MoonriseCommonInternal.PARALLEL_GEN_GROUP.createExecutor(-1, MoonriseCommonInternal.WORKER_QUEUE_HOLD_TIME, 0);
+        this.radiusAwareGenExecutor = MoonriseCommonInternal.RADIUS_AWARE_GROUP.createExecutor(1, MoonriseCommonInternal.WORKER_QUEUE_HOLD_TIME, 0);
+        this.loadExecutor = MoonriseCommonInternal.LOAD_GROUP.createExecutor(-1, MoonriseCommonInternal.WORKER_QUEUE_HOLD_TIME, 0);
         this.radiusAwareScheduler = new RadiusAwarePrioritisedExecutor(this.radiusAwareGenExecutor, 16);
-        this.ioExecutor = MoonriseCommon.SERVER_REGION_IO_GROUP.createExecutor(-1, MoonriseCommon.IO_QUEUE_HOLD_TIME, 0);
+        this.ioExecutor = MoonriseCommonInternal.SERVER_REGION_IO_GROUP.createExecutor(-1, MoonriseCommonInternal.IO_QUEUE_HOLD_TIME, 0);
         // we need a separate executor here so that on shutdown we can continue to process I/O tasks
-        this.compressionExecutor = MoonriseCommon.LOAD_GROUP.createExecutor(-1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
+        this.compressionExecutor = MoonriseCommonInternal.LOAD_GROUP.createExecutor(-1, MoonriseCommonInternal.WORKER_QUEUE_HOLD_TIME, 0);
         this.chunkHolderManager = new ChunkHolderManager(world, this);
+    }
+
+    // Compatibility constructor for AsyncYouer/Paper integrations that pass a worker pool.
+    public ChunkTaskScheduler(final ServerLevel world,
+                              final ca.spottedleaf.concurrentutil.executor.standard.PrioritisedThreadPool workerPool) {
+        this(world);
     }
 
     private final AtomicBoolean failedChunkSystem = new AtomicBoolean();
@@ -502,6 +508,33 @@ public final class ChunkTaskScheduler {
                 }
             }
         });
+    }
+
+    // Compatibility overload for AsyncYouer/Paper integrations using standard executor priority.
+    public void scheduleChunkLoad(final int chunkX, final int chunkZ, final ChunkStatus toStatus, final boolean addTicket,
+                                  final ca.spottedleaf.concurrentutil.executor.standard.PrioritisedExecutor.Priority priority,
+                                  final Consumer<ChunkAccess> onComplete) {
+        this.scheduleChunkLoad(chunkX, chunkZ, toStatus, addTicket, convertPriority(priority), onComplete);
+    }
+
+    // Compatibility overload for AsyncYouer/Paper integrations using standard executor priority.
+    public void scheduleChunkLoad(final int chunkX, final int chunkZ, final boolean gen, final ChunkStatus toStatus, final boolean addTicket,
+                                  final ca.spottedleaf.concurrentutil.executor.standard.PrioritisedExecutor.Priority priority,
+                                  final Consumer<ChunkAccess> onComplete) {
+        this.scheduleChunkLoad(chunkX, chunkZ, gen, toStatus, addTicket, convertPriority(priority), onComplete);
+    }
+
+    private static Priority convertPriority(
+            final ca.spottedleaf.concurrentutil.executor.standard.PrioritisedExecutor.Priority priority
+    ) {
+        if (priority == null) {
+            return Priority.NORMAL;
+        }
+        try {
+            return Priority.valueOf(priority.name());
+        } catch (final IllegalArgumentException ex) {
+            return Priority.NORMAL;
+        }
     }
 
     // only appropriate to use with syncLoadNonFull

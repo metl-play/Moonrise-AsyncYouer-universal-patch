@@ -43,4 +43,8 @@ public final class RegionFileIOThread {
     public static void partialFlush(final ServerLevel world, final int tasksRemaining) {
         MoonriseRegionFileIO.partialFlush(world, tasksRemaining);
     }
+
+    public static void deinit() {
+        // Compatibility no-op; MoonriseRegionFileIO does not require explicit shutdown here.
+    }
 }

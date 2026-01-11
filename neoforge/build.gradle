@@ -43,7 +43,6 @@ shadowJar {
     archiveClassifier = "dev-all"
     destinationDirectory = layout.buildDirectory.dir("libs")
     configurations = [project.configurations.shadow]
-    relocate 'ca.spottedleaf.concurrentutil', 'ca.spottedleaf.moonrise.libs.ca.spottedleaf.concurrentutil'
     relocate 'ca.spottedleaf.yamlconfig', 'ca.spottedleaf.moonrise.libs.ca.spottedleaf.yamlconfig'
     relocate 'org.yaml.snakeyaml', 'ca.spottedleaf.moonrise.libs.org.yaml.snakeyaml'
 }
