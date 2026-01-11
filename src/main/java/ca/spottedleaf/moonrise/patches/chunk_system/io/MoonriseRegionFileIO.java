@@ -1248,7 +1248,7 @@ public final class MoonriseRegionFileIO {
         }
     }
 
-    public static abstract class RegionDataController {
+    public static abstract class RegionDataController implements RegionFileIOThread.ChunkDataController {
 
         public final RegionFileType type;
         private final PrioritisedExecutor compressionExecutor;

@@ -2,6 +2,7 @@ package ca.spottedleaf.moonrise.patches.chunk_system.io.datacontroller;
 
 import ca.spottedleaf.moonrise.patches.chunk_system.io.ChunkSystemRegionFileStorage;
 import ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO;
+import ca.spottedleaf.moonrise.common.util.MoonriseCommon;
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskScheduler;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.ChunkPos;
@@ -13,7 +14,15 @@ import java.nio.file.Path;
 
 public final class EntityDataController extends MoonriseRegionFileIO.RegionDataController {
 
+    private static final MoonriseCommonHolder FALLBACK_EXECUTORS = new MoonriseCommonHolder();
+
     private final EntityRegionFileStorage storage;
+
+    // Legacy constructor for older integrations (e.g., Youer) that still call the storage-only signature.
+    public EntityDataController(final EntityRegionFileStorage storage) {
+        super(MoonriseRegionFileIO.RegionFileType.ENTITY_DATA, FALLBACK_EXECUTORS.ioExecutor, FALLBACK_EXECUTORS.compressionExecutor);
+        this.storage = storage;
+    }
 
     public EntityDataController(final EntityRegionFileStorage storage, final ChunkTaskScheduler taskScheduler) {
         super(MoonriseRegionFileIO.RegionFileType.ENTITY_DATA, taskScheduler.ioExecutor, taskScheduler.compressionExecutor);
@@ -69,5 +78,12 @@ public final class EntityDataController extends MoonriseRegionFileIO.RegionDataC
             checkPosition(pos, nbt);
             super.write(pos, nbt);
         }
+    }
+
+    private static final class MoonriseCommonHolder {
+        private final ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor ioExecutor =
+                MoonriseCommon.SERVER_REGION_IO_GROUP.createExecutor(-1, MoonriseCommon.IO_QUEUE_HOLD_TIME, 0);
+        private final ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor compressionExecutor =
+                MoonriseCommon.LOAD_GROUP.createExecutor(-1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
     }
 }

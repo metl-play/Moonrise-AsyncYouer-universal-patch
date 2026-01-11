@@ -1,7 +1,9 @@
 package ca.spottedleaf.moonrise.patches.chunk_system.io.datacontroller;
 
+import ca.spottedleaf.moonrise.common.util.MoonriseCommon;
 import ca.spottedleaf.moonrise.patches.chunk_system.io.ChunkSystemRegionFileStorage;
 import ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO;
+import ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel;
 import ca.spottedleaf.moonrise.patches.chunk_system.level.storage.ChunkSystemSectionStorage;
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskScheduler;
 import net.minecraft.nbt.CompoundTag;
@@ -11,10 +13,19 @@ import java.io.IOException;
 
 public final class PoiDataController extends MoonriseRegionFileIO.RegionDataController {
 
+    private static final MoonriseCommonHolder FALLBACK_EXECUTORS = new MoonriseCommonHolder();
+
     private final ServerLevel world;
 
+    // Legacy constructor for older integrations (e.g., Youer) that still call the world-only signature.
+    public PoiDataController(final ServerLevel world) {
+        this(world, getScheduler(world));
+    }
+
     public PoiDataController(final ServerLevel world, final ChunkTaskScheduler taskScheduler) {
-        super(MoonriseRegionFileIO.RegionFileType.POI_DATA, taskScheduler.ioExecutor, taskScheduler.compressionExecutor);
+        super(MoonriseRegionFileIO.RegionFileType.POI_DATA,
+                taskScheduler == null ? FALLBACK_EXECUTORS.ioExecutor : taskScheduler.ioExecutor,
+                taskScheduler == null ? FALLBACK_EXECUTORS.compressionExecutor : taskScheduler.compressionExecutor);
         this.world = world;
     }
 
@@ -41,5 +52,18 @@ public final class PoiDataController extends MoonriseRegionFileIO.RegionDataCont
     @Override
     public CompoundTag finishRead(final int chunkX, final int chunkZ, final ReadData readData) throws IOException {
         return ((ChunkSystemRegionFileStorage)this.getCache()).moonrise$finishRead(chunkX, chunkZ, readData);
+    }
+
+    private static ChunkTaskScheduler getScheduler(final ServerLevel world) {
+        return world instanceof ChunkSystemServerLevel
+                ? ((ChunkSystemServerLevel)world).moonrise$getChunkTaskScheduler()
+                : null;
+    }
+
+    private static final class MoonriseCommonHolder {
+        private final ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor ioExecutor =
+                MoonriseCommon.SERVER_REGION_IO_GROUP.createExecutor(-1, MoonriseCommon.IO_QUEUE_HOLD_TIME, 0);
+        private final ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor compressionExecutor =
+                MoonriseCommon.LOAD_GROUP.createExecutor(-1, MoonriseCommon.WORKER_QUEUE_HOLD_TIME, 0);
     }
 }

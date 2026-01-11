@@ -26,6 +26,7 @@ import ca.spottedleaf.moonrise.patches.chunk_system.status.ChunkSystemChunkStep;
 import ca.spottedleaf.moonrise.patches.chunk_system.util.ParallelSearchRadiusIteration;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import io.papermc.paper.configuration.GlobalConfiguration;
 import net.minecraft.CrashReport;
 import net.minecraft.CrashReportCategory;
 import net.minecraft.ReportedException;
@@ -65,6 +66,32 @@ import java.util.function.Consumer;
 public final class ChunkTaskScheduler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ChunkTaskScheduler.class);
+
+    // Paper/Youer hook: GlobalConfiguration.ChunkSystem.postProcess expects this signature.
+    public static void init(final GlobalConfiguration.ChunkSystem config) {
+        Objects.requireNonNull(config, "config");
+        MoonriseCommon.adjustWorkerThreads(config.workerThreads, config.ioThreads);
+
+        String genParallelism = Objects.requireNonNull(config.genParallelism, "config.genParallelism");
+        if ("default".equalsIgnoreCase(genParallelism)) {
+            genParallelism = "true";
+        }
+
+        final boolean useParallelGen;
+        if ("on".equalsIgnoreCase(genParallelism)
+                || "enabled".equalsIgnoreCase(genParallelism)
+                || "true".equalsIgnoreCase(genParallelism)) {
+            useParallelGen = true;
+        } else if ("off".equalsIgnoreCase(genParallelism)
+                || "disabled".equalsIgnoreCase(genParallelism)
+                || "false".equalsIgnoreCase(genParallelism)) {
+            useParallelGen = false;
+        } else {
+            throw new IllegalStateException("Invalid option for gen-parallelism: must be one of [on, off, enabled, disabled, true, false, default]");
+        }
+
+        init(useParallelGen);
+    }
 
     public static void init(final boolean useParallelGen) {
         for (final PrioritisedThreadPool.ExecutorGroup.ThreadPoolExecutor executor : MoonriseCommon.RADIUS_AWARE_GROUP.getAllExecutors()) {

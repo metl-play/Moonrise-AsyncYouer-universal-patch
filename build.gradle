@@ -19,6 +19,7 @@ def getGitCommit = { ->
 }
 
 sourceSets.create("lithium")
+sourceSets.create("paperStubs")
 loom.createRemapConfigurations(sourceSets.getByName("lithium"))
 afterEvaluate {
     configurations.named("lithiumCompileOnly") {
@@ -37,6 +38,7 @@ dependencies {
 
     "modLithiumCompileOnly"("maven.modrinth:lithium:${rootProject.property("neo_lithium_version")}")
     compileOnly(sourceSets.getByName("lithium").output)
+    compileOnly(sourceSets.getByName("paperStubs").output)
 }
 
 File awFile = file("src/main/resources/moonrise.accesswidener")
@@ -90,6 +92,12 @@ allprojects {
     tasks.jar.configure {
         from(rootProject.file("LICENSE")) {
             rename { "${it}_${rootProject.base.archivesName.get()}"}
+        }
+    }
+
+    if (project == rootProject) {
+        tasks.named("compileJava") {
+            dependsOn(tasks.named("compilePaperStubsJava"))
         }
     }
 
