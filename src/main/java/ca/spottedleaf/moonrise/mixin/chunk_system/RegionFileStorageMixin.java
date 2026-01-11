@@ -4,6 +4,7 @@ import ca.spottedleaf.moonrise.patches.chunk_system.io.ChunkSystemRegionFileStor
 import ca.spottedleaf.moonrise.patches.chunk_system.io.MoonriseRegionFileIO;
 import ca.spottedleaf.moonrise.patches.chunk_system.storage.ChunkSystemRegionFile;
 import ca.spottedleaf.moonrise.patches.chunk_system.util.stream.ExternalChunkStreamMarker;
+import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import net.minecraft.FileUtil;
@@ -15,6 +16,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.storage.RegionFile;
 import net.minecraft.world.level.chunk.storage.RegionFileStorage;
 import net.minecraft.world.level.chunk.storage.RegionStorageInfo;
+import org.slf4j.Logger;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -62,6 +64,9 @@ abstract class RegionFileStorageMixin implements ChunkSystemRegionFileStorage, A
     private static final int MAX_NON_EXISTING_CACHE = 1024 * 4;
 
     @Unique
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    @Unique
     private final LongLinkedOpenHashSet nonExistingRegionFiles = new LongLinkedOpenHashSet();
 
     @Unique
@@ -105,11 +110,26 @@ abstract class RegionFileStorageMixin implements ChunkSystemRegionFileStorage, A
 
     @Override
     public synchronized final RegionFile moonrise$getRegionFileIfLoaded(final int chunkX, final int chunkZ) {
-        return this.regionCache.getAndMoveToFirst(ChunkPos.asLong(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT));
+        try {
+            return this.regionCache.getAndMoveToFirst(ChunkPos.asLong(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT));
+        } catch (final ArrayIndexOutOfBoundsException error) {
+            this.moonrise$resetRegionCache(error);
+            return null;
+        }
     }
 
     @Override
     public synchronized final RegionFile moonrise$getRegionFileIfExists(final int chunkX, final int chunkZ) throws IOException {
+        try {
+            return this.moonrise$getRegionFileIfExistsInternal(chunkX, chunkZ);
+        } catch (final ArrayIndexOutOfBoundsException error) {
+            this.moonrise$resetRegionCache(error);
+            return this.moonrise$getRegionFileIfExistsInternal(chunkX, chunkZ);
+        }
+    }
+
+    @Unique
+    private RegionFile moonrise$getRegionFileIfExistsInternal(final int chunkX, final int chunkZ) throws IOException {
         final long key = ChunkPos.asLong(chunkX >> REGION_SHIFT, chunkZ >> REGION_SHIFT);
 
         RegionFile ret = this.regionCache.getAndMoveToFirst(key);
@@ -150,28 +170,59 @@ abstract class RegionFileStorageMixin implements ChunkSystemRegionFileStorage, A
     @Overwrite
     public final RegionFile getRegionFile(final ChunkPos chunkPos) throws IOException {
         synchronized (this) {
-            final long key = ChunkPos.asLong(chunkPos.x >> REGION_SHIFT, chunkPos.z >> REGION_SHIFT);
-
-            RegionFile ret = this.regionCache.getAndMoveToFirst(key);
-            if (ret != null) {
-                return ret;
+            try {
+                return this.moonrise$getRegionFileInternal(chunkPos);
+            } catch (final ArrayIndexOutOfBoundsException error) {
+                this.moonrise$resetRegionCache(error);
+                return this.moonrise$getRegionFileInternal(chunkPos);
             }
+        }
+    }
 
-            if (this.regionCache.size() >= MAX_CACHE_SIZE) {
-                this.regionCache.removeLast().close();
-            }
+    @Unique
+    private RegionFile moonrise$getRegionFileInternal(final ChunkPos chunkPos) throws IOException {
+        final long key = ChunkPos.asLong(chunkPos.x >> REGION_SHIFT, chunkPos.z >> REGION_SHIFT);
 
-            final Path regionPath = this.folder.resolve(getRegionFileName(chunkPos.x, chunkPos.z));
-
-            this.createRegionFile(key);
-
-            FileUtil.createDirectoriesSafe(this.folder);
-
-            ret = new RegionFile(this.info, regionPath, this.folder, this.sync);
-
-            this.regionCache.putAndMoveToFirst(key, ret);
-
+        RegionFile ret = this.regionCache.getAndMoveToFirst(key);
+        if (ret != null) {
             return ret;
+        }
+
+        if (this.regionCache.size() >= MAX_CACHE_SIZE) {
+            this.regionCache.removeLast().close();
+        }
+
+        final Path regionPath = this.folder.resolve(getRegionFileName(chunkPos.x, chunkPos.z));
+
+        this.createRegionFile(key);
+
+        FileUtil.createDirectoriesSafe(this.folder);
+
+        ret = new RegionFile(this.info, regionPath, this.folder, this.sync);
+
+        this.regionCache.putAndMoveToFirst(key, ret);
+
+        return ret;
+    }
+
+    @Unique
+    private void moonrise$resetRegionCache(final ArrayIndexOutOfBoundsException error) {
+        LOGGER.error("RegionFileStorage cache corrupted, clearing cache to recover", error);
+        try {
+            for (final RegionFile regionFile : this.regionCache.values()) {
+                try {
+                    regionFile.close();
+                } catch (final IOException ignored) {
+                    // best-effort cleanup; keep recovery path simple
+                }
+            }
+        } catch (final Throwable ignored) {
+            // cache structure may already be corrupted
+        }
+        try {
+            this.regionCache.clear();
+        } catch (final Throwable ignored) {
+            // ignore secondary failures; caller will retry or throw
         }
     }
 

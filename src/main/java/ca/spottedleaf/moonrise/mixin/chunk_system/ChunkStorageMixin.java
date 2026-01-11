@@ -101,7 +101,9 @@ abstract class ChunkStorageMixin implements ChunkSystemChunkStorage, AutoCloseab
     )
     private CompletableFuture<Optional<CompoundTag>> redirectLoad(final IOWorker instance, final ChunkPos chunkPos) {
         try {
-            return CompletableFuture.completedFuture(Optional.ofNullable(this.storage.read(chunkPos)));
+            synchronized (this.storage) {
+                return CompletableFuture.completedFuture(Optional.ofNullable(this.storage.read(chunkPos)));
+            }
         } catch (final Throwable throwable) {
             return CompletableFuture.failedFuture(throwable);
         }
@@ -124,7 +126,9 @@ abstract class ChunkStorageMixin implements ChunkSystemChunkStorage, AutoCloseab
     private CompletableFuture<Void> redirectWrite(final IOWorker instance, final ChunkPos chunkPos,
                                                   final CompoundTag compoundTag) {
         try {
-            this.storage.write(chunkPos, compoundTag);
+            synchronized (this.storage) {
+                this.storage.write(chunkPos, compoundTag);
+            }
             return CompletableFuture.completedFuture(null);
         } catch (final Throwable throwable) {
             return CompletableFuture.failedFuture(throwable);
@@ -157,7 +161,9 @@ abstract class ChunkStorageMixin implements ChunkSystemChunkStorage, AutoCloseab
     @Overwrite
     public void flushWorker() {
         try {
-            this.storage.flush();
+            synchronized (this.storage) {
+                this.storage.flush();
+            }
         } catch (final IOException ex) {
             LOGGER.error("Failed to flush chunk storage", ex);
         }
@@ -170,7 +176,9 @@ abstract class ChunkStorageMixin implements ChunkSystemChunkStorage, AutoCloseab
     @Override
     @Overwrite
     public void close() throws Exception {
-        this.storage.close();
+        synchronized (this.storage) {
+            this.storage.close();
+        }
     }
 
     /**
@@ -182,7 +190,9 @@ abstract class ChunkStorageMixin implements ChunkSystemChunkStorage, AutoCloseab
         // TODO ChunkMap implementation?
         return (chunkPos, streamTagVisitor) -> {
             try {
-                this.storage.scanChunk(chunkPos, streamTagVisitor);
+                synchronized (this.storage) {
+                    this.storage.scanChunk(chunkPos, streamTagVisitor);
+                }
                 return java.util.concurrent.CompletableFuture.completedFuture(null);
             } catch (IOException e) {
                 throw new RuntimeException(e);
