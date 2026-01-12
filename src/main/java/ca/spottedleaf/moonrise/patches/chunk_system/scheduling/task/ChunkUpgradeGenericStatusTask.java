@@ -3,6 +3,7 @@ package ca.spottedleaf.moonrise.patches.chunk_system.scheduling.task;
 import ca.spottedleaf.concurrentutil.executor.PrioritisedExecutor;
 import ca.spottedleaf.concurrentutil.util.ConcurrentUtil;
 import ca.spottedleaf.concurrentutil.util.Priority;
+import ca.spottedleaf.moonrise.common.util.TickThread;
 import ca.spottedleaf.moonrise.common.util.WorldUtil;
 import ca.spottedleaf.moonrise.patches.chunk_system.level.chunk.ChunkSystemChunkStatus;
 import ca.spottedleaf.moonrise.patches.chunk_system.scheduling.ChunkTaskScheduler;
@@ -71,91 +72,97 @@ public final class ChunkUpgradeGenericStatusTask extends ChunkProgressionTask im
 
     @Override
     public void run() {
-        final ChunkAccess chunk = this.fromChunk;
-
-        final ServerChunkCache serverChunkCache = this.world.getChunkSource();
-        final ChunkMap chunkMap = serverChunkCache.chunkMap;
-
-        final CompletableFuture<ChunkAccess> completeFuture;
-
-        final boolean generation;
-        boolean completing = false;
-
-        // note: should optimise the case where the chunk does not need to execute the status, because
-        // schedule() calls this synchronously if it will run through that path
-
-        final WorldGenContext ctx = chunkMap.worldGenContext;
+        final int accessRadius = ((ChunkSystemChunkStatus)this.toStatus).moonrise$getWriteRadius();
+        final TickThread.ChunkTaskContext context = TickThread.pushChunkTaskContext(this.world, this.chunkX, this.chunkZ, accessRadius);
         try {
-            generation = !chunk.getPersistedStatus().isOrAfter(this.toStatus);
-            if (generation) {
-                if (((ChunkSystemChunkStatus)this.toStatus).moonrise$isEmptyGenStatus()) {
-                    if (chunk instanceof ProtoChunk) {
-                        ((ProtoChunk)chunk).setPersistedStatus(this.toStatus);
+            final ChunkAccess chunk = this.fromChunk;
+
+            final ServerChunkCache serverChunkCache = this.world.getChunkSource();
+            final ChunkMap chunkMap = serverChunkCache.chunkMap;
+
+            final CompletableFuture<ChunkAccess> completeFuture;
+
+            final boolean generation;
+            boolean completing = false;
+
+            // note: should optimise the case where the chunk does not need to execute the status, because
+            // schedule() calls this synchronously if it will run through that path
+
+            final WorldGenContext ctx = chunkMap.worldGenContext;
+            try {
+                generation = !chunk.getPersistedStatus().isOrAfter(this.toStatus);
+                if (generation) {
+                    if (((ChunkSystemChunkStatus)this.toStatus).moonrise$isEmptyGenStatus()) {
+                        if (chunk instanceof ProtoChunk) {
+                            ((ProtoChunk)chunk).setPersistedStatus(this.toStatus);
+                        }
+                        completing = true;
+                        this.complete(chunk, null);
+                        return;
                     }
-                    completing = true;
-                    this.complete(chunk, null);
-                    return;
-                }
-                completeFuture = ChunkPyramid.GENERATION_PYRAMID.getStepTo(this.toStatus).apply(ctx, this.neighbours, this.fromChunk)
-                        .whenComplete((final ChunkAccess either, final Throwable throwable) -> {
-                                    if (either instanceof ProtoChunk proto) {
-                                        proto.setPersistedStatus(ChunkUpgradeGenericStatusTask.this.toStatus);
+                    completeFuture = ChunkPyramid.GENERATION_PYRAMID.getStepTo(this.toStatus).apply(ctx, this.neighbours, this.fromChunk)
+                            .whenComplete((final ChunkAccess either, final Throwable throwable) -> {
+                                        if (either instanceof ProtoChunk proto) {
+                                            proto.setPersistedStatus(ChunkUpgradeGenericStatusTask.this.toStatus);
+                                        }
                                     }
-                                }
-                        );
-            } else {
-                if (((ChunkSystemChunkStatus)this.toStatus).moonrise$isEmptyLoadStatus()) {
-                    completing = true;
-                    this.complete(chunk, null);
+                            );
+                } else {
+                    if (((ChunkSystemChunkStatus)this.toStatus).moonrise$isEmptyLoadStatus()) {
+                        completing = true;
+                        this.complete(chunk, null);
+                        return;
+                    }
+                    completeFuture = ChunkPyramid.LOADING_PYRAMID.getStepTo(this.toStatus).apply(ctx, this.neighbours, this.fromChunk);
+                }
+            } catch (final Throwable throwable) {
+                if (!completing) {
+                    this.complete(null, throwable);
                     return;
                 }
-                completeFuture = ChunkPyramid.LOADING_PYRAMID.getStepTo(this.toStatus).apply(ctx, this.neighbours, this.fromChunk);
+
+                this.scheduler.unrecoverableChunkSystemFailure(this.chunkX, this.chunkZ, Map.of(
+                    "Target status", ChunkTaskScheduler.stringIfNull(this.toStatus),
+                    "From status", ChunkTaskScheduler.stringIfNull(this.fromStatus),
+                    "Generation task", this
+                ), throwable);
+
+                LOGGER.error(
+                        "Failed to complete status for chunk: status:" + this.toStatus + ", chunk: (" + this.chunkX +
+                                "," + this.chunkZ + "), world: " + WorldUtil.getWorldName(this.world),
+                        throwable
+                );
+
+                return;
             }
-        } catch (final Throwable throwable) {
-            if (!completing) {
+
+            if (!completeFuture.isDone() && !((ChunkSystemChunkStatus)this.toStatus).moonrise$getWarnedAboutNoImmediateComplete().getAndSet(true)) {
+                LOGGER.warn("Future status not complete after scheduling: " + this.toStatus.toString() + ", generate: " + generation);
+            }
+
+            final ChunkAccess newChunk;
+
+            try {
+                newChunk = completeFuture.join();
+            } catch (final Throwable throwable) {
                 this.complete(null, throwable);
                 return;
             }
 
-            this.scheduler.unrecoverableChunkSystemFailure(this.chunkX, this.chunkZ, Map.of(
-                "Target status", ChunkTaskScheduler.stringIfNull(this.toStatus),
-                "From status", ChunkTaskScheduler.stringIfNull(this.fromStatus),
-                "Generation task", this
-            ), throwable);
+            if (newChunk == null) {
+                this.complete(null,
+                        new IllegalStateException(
+                                "Chunk for status: " + ChunkUpgradeGenericStatusTask.this.toStatus.toString()
+                                        + ", generation: " + generation + " should not be null! Future: " + completeFuture
+                        ).fillInStackTrace()
+                );
+                return;
+            }
 
-            LOGGER.error(
-                    "Failed to complete status for chunk: status:" + this.toStatus + ", chunk: (" + this.chunkX +
-                            "," + this.chunkZ + "), world: " + WorldUtil.getWorldName(this.world),
-                    throwable
-            );
-
-            return;
+            this.complete(newChunk, null);
+        } finally {
+            TickThread.popChunkTaskContext(context);
         }
-
-        if (!completeFuture.isDone() && !((ChunkSystemChunkStatus)this.toStatus).moonrise$getWarnedAboutNoImmediateComplete().getAndSet(true)) {
-            LOGGER.warn("Future status not complete after scheduling: " + this.toStatus.toString() + ", generate: " + generation);
-        }
-
-        final ChunkAccess newChunk;
-
-        try {
-            newChunk = completeFuture.join();
-        } catch (final Throwable throwable) {
-            this.complete(null, throwable);
-            return;
-        }
-
-        if (newChunk == null) {
-            this.complete(null,
-                    new IllegalStateException(
-                            "Chunk for status: " + ChunkUpgradeGenericStatusTask.this.toStatus.toString()
-                                    + ", generation: " + generation + " should not be null! Future: " + completeFuture
-                    ).fillInStackTrace()
-            );
-            return;
-        }
-
-        this.complete(newChunk, null);
     }
 
     private volatile boolean scheduled;
